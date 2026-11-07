@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lab 3 | Візуалізація AST</title>
+
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: #0b1220;
+        color: #e5e7eb;
+        font-family: "Segoe UI", Arial, sans-serif;
+      }
+
+      header {
+        padding: 24px 32px;
+        background: #111c30;
+        border-bottom: 1px solid #25344d;
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: 26px;
+      }
+
+      header p {
+        margin: 0;
+        color: #94a3b8;
+      }
+
+      .toolbar {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 16px 32px;
+        flex-wrap: wrap;
+      }
+
+      button {
+        padding: 10px 17px;
+        border: 1px solid #3b82f6;
+        border-radius: 8px;
+        background: #1d4ed8;
+        color: white;
+        font-size: 14px;
+        cursor: pointer;
+      }
+
+      button:hover {
+        background: #2563eb;
+      }
+
+      .secondary {
+        background: #17253d;
+        border-color: #334155;
+      }
+
+      .secondary:hover {
+        background: #263b5b;
+      }
+
+      #status {
+        margin-left: auto;
+        color: #94a3b8;
+        font-size: 14px;
+      }
+
+      .workspace {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 300px;
+        gap: 16px;
+        padding: 0 20px 20px;
+      }
+
+      #canvas {
+        height: 650px;
+        background: #101b2e;
+        border: 1px solid #25344d;
+        border-radius: 12px;
+        overflow: hidden;
+      }
+
+      svg {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+
+      aside {
+        background: #111c30;
+        border: 1px solid #25344d;
+        border-radius: 12px;
+        padding: 20px;
+      }
+
+      aside h2 {
+        margin-top: 0;
+        font-size: 18px;
+      }
+
+      #details {
+        color: #cbd5e1;
+        line-height: 1.8;
+        overflow-wrap: anywhere;
+      }
+
+      .node rect {
+        stroke: rgba(255, 255, 255, 0.35);
+        stroke-width: 1.2px;
+        cursor: pointer;
+      }
+
+      .node text {
+        font-size: 12px;
+        font-weight: 600;
+        fill: white;
+        pointer-events: none;
+      }
+
+      .link {
+        fill: none;
+        stroke: #64748b;
+        stroke-width: 1.7px;
+        opacity: 0.75;
+      }
+
+      .hint {
+        color: #94a3b8;
+        font-size: 13px;
+        margin-top: 20px;
+      }
+
+      @media (max-width: 850px) {
+        .workspace {
+          grid-template-columns: 1fr;
+        }
+
+        #canvas {
+          height: 550px;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <header>
+      <h1>Візуалізація AST</h1>
+      <p>Лабораторна робота №3 — аналіз підмножини C засобами Lex/YACC</p>
+    </header>
+
+    <div class="toolbar">
+      <button id="reload">Оновити AST</button>
+      <button id="fit" class="secondary">Показати все дерево</button>
+      <button id="zoom-in" class="secondary">Zoom +</button>
+      <button id="zoom-out" class="secondary">Zoom −</button>
+      <span id="status">Завантаження...</span>
+    </div>
+
+    <main class="workspace">
+      <div id="canvas">
+        <svg id="tree"></svg>
+      </div>
+
+      <aside>
+        <h2>Інформація про вузол</h2>
+        <div id="details">Натисніть на вузол для перегляду його властивостей.</div>
+
+        <p class="hint">
+          Колесо миші: масштаб<br />
+          Перетягніть фон: рух дерева<br />
+          Натисніть на вузол: деталі
+        </p>
+      </aside>
+    </main>
+
+    <script>
+      const svg = d3.select("#tree");
+      const container = document.getElementById("canvas");
+      const status = document.getElementById("status");
+      const details = document.getElementById("details");
+
+      const layer = svg.append("g");
+
+      // Масштабування та переміщення графа.
+      const zoom = d3
+        .zoom()
+        .scaleExtent([0.1, 4])
+        .on("zoom", (event) => {
+          layer.attr("transform", event.transform);
+        });
+
+      svg.call(zoom);
+
+      let currentRoot = null;
+
+      // Побудова ієрархії вузлів із JSON-подання AST.
+      function convertAST(node, edge = "") {
+        const result = {
+          label: "",
+          kind: node.type || "Value",
+          edge: edge,
+          raw: node,
+          children: [],
+        };
+
+        switch (node.type) {
+          case "Program":
+            result.label = "Program";
+            node.body.forEach((child, i) => {
+              result.children.push(convertAST(child, "statement " + (i + 1)));
+            });
+            break;
+
+          case "VariableDeclaration":
+            result.label = "Оголошення: " + node.name;
+            result.children.push({
+              label: "Тип: " + node.dataType,
+              kind: "DataType",
+              edge: "datatype",
+              raw: node.dataType,
+              children: [],
+            });
+
+            if (node.value !== null) {
+              result.children.push(convertAST(node.value, "value"));
+            }
+            break;
+
+          case "Assignment":
+            result.label = "Присвоєння: " + node.name;
+            result.children.push(convertAST(node.value, "value"));
+            break;
+
+          case "BinaryExpression":
+            result.label = "Оператор: " + node.operator;
+            result.children.push(convertAST(node.left, "left"));
+            result.children.push(convertAST(node.right, "right"));
+            break;
+
+          case "UnaryExpression":
+            result.label = "Унарний: " + node.operator;
+            result.children.push(convertAST(node.operand, "operand"));
+            break;
+
+          case "BlockStatement":
+            result.label = "Блок { }";
+            node.body.forEach((child, i) => {
+              result.children.push(convertAST(child, "інструкція " + (i + 1)));
+            });
+            break;
+
+          case "IfStatement":
+            result.label = "Умова if";
+            result.children.push(convertAST(node.condition, "умова"));
+            result.children.push(convertAST(node.consequent, "гілка if"));
+            if (node.alternate !== null) {
+              result.children.push(convertAST(node.alternate, "гілка else"));
+            }
+            break;
+
+          case "WhileStatement":
+            result.label = "Цикл while";
+            result.children.push(convertAST(node.condition, "умова"));
+            result.children.push(convertAST(node.body, "тіло циклу"));
+            break;
+
+          case "Number":
+            result.label = "Число: " + node.value;
+            break;
+
+          case "Identifier":
+            result.label = "Змінна: " + node.name;
+            break;
+
+          default:
+            result.label = node.type || "Unknown";
+        }
+
+        return result;
+      }
+
+      function nodeColor(kind) {
+        const colors = {
+          Program: "#2563eb",
+          IfStatement: "#e11d48",
+          WhileStatement: "#e11d48",
+          BlockStatement: "#2563eb",
+          VariableDeclaration: "#7c3aed",
+          Assignment: "#7c3aed",
+          BinaryExpression: "#0d9488",
+          UnaryExpression: "#0d9488",
+          Number: "#d97706",
+          Identifier: "#475569",
+          DataType: "#475569",
+        };
+
+        return colors[kind] || "#64748b";
+      }
+
+      function showDetails(node) {
+        const data = node.data;
+
+        details.replaceChildren();
+
+        const title = document.createElement("strong");
+        title.textContent = data.label;
+        details.appendChild(title);
+
+        const type = document.createElement("p");
+        type.textContent = "Тип вузла AST: " + data.kind;
+        details.appendChild(type);
+
+        if (data.edge) {
+          const edge = document.createElement("p");
+          edge.textContent = "Зв’язок: " + data.edge;
+          details.appendChild(edge);
+        }
+
+        const pre = document.createElement("pre");
+        pre.style.whiteSpace = "pre-wrap";
+        pre.style.fontSize = "12px";
+        pre.textContent = JSON.stringify(data.raw, null, 2);
+        details.appendChild(pre);
+      }
+
+      function fitToScreen() {
+        if (!currentRoot) return;
+
+        const bounds = layer.node().getBBox();
+
+        if (!bounds.width || !bounds.height) return;
+
+        const width = container.clientWidth;
+        const height = container.clientHeight;
+        const padding = 70;
+
+        const scale = Math.min(
+          (width - padding) / bounds.width,
+          (height - padding) / bounds.height,
+          1.5,
+        );
+
+        const x = (width - bounds.width * scale) / 2 - bounds.x * scale;
+
+        const y = (height - bounds.height * scale) / 2 - bounds.y * scale;
+
+        svg
+          .transition()
+          .duration(600)
+          .call(zoom.transform, d3.zoomIdentity.translate(x, y).scale(scale));
+      }
+
+      function renderTree(ast) {
+        layer.selectAll("*").remove();
+
+        const data = convertAST(ast);
+        const root = d3.hierarchy(data);
+
+        const treeLayout = d3.tree().nodeSize([85, 240]);
+
+        treeLayout(root);
+        currentRoot = root;
+
+        layer
+          .selectAll(".link")
+          .data(root.links())
+          .enter()
+          .append("path")
+          .attr("class", "link")
+          .attr(
+            "d",
+            d3
+              .linkHorizontal()
+              .x((d) => d.y)
+              .y((d) => d.x),
+          );
+
+        const nodes = layer
+          .selectAll(".node")
+          .data(root.descendants())
+          .enter()
+          .append("g")
+          .attr("class", "node")
+          .attr("transform", (d) => `translate(${d.y},${d.x})`)
+          .on("click", (event, d) => {
+            event.stopPropagation();
+            showDetails(d);
+          });
+
+        nodes
+          .append("rect")
+          .attr("x", -94)
+          .attr("y", -19)
+          .attr("width", 188)
+          .attr("height", 38)
+          .attr("rx", 9)
+          .attr("fill", (d) => nodeColor(d.data.kind));
+
+        nodes
+          .append("text")
+          .attr("text-anchor", "middle")
+          .attr("dy", 4)
+          .text((d) => d.data.label);
+
+        fitToScreen();
+      }
+
+      // Завантаження дерева з локального вебсервера.
+      async function loadAST() {
+        status.textContent = "Завантаження AST...";
+
+        try {
+          const response = await fetch("ast.json?t=" + Date.now(), {
+            cache: "no-store",
+          });
+
+          if (!response.ok) {
+            throw new Error("HTTP " + response.status);
+          }
+
+          const ast = await response.json();
+
+          if (ast.type !== "Program") {
+            throw new Error("Invalid AST root");
+          }
+
+          renderTree(ast);
+
+          status.textContent = "AST завантажено";
+          details.textContent = "Натисніть на вузол для перегляду його властивостей.";
+        } catch (error) {
+          status.textContent = "Помилка завантаження AST";
+          details.textContent = error.message;
+          console.error(error);
+        }
+      }
+
+      document.getElementById("reload").addEventListener("click", loadAST);
+
+      document.getElementById("fit").addEventListener("click", fitToScreen);
+
+      document.getElementById("zoom-in").addEventListener("click", () => {
+        svg.transition().call(zoom.scaleBy, 1.3);
+      });
+
+      document.getElementById("zoom-out").addEventListener("click", () => {
+        svg.transition().call(zoom.scaleBy, 0.75);
+      });
+
+      loadAST();
+    </script>
+  </body>
+</html>

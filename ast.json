@@ -1,0 +1,141 @@
+{
+  "type": "Program",
+  "body": [
+    {
+      "type": "VariableDeclaration",
+      "dataType": "int",
+      "name": "a",
+      "value": {
+        "type": "Number",
+        "value": 5
+      }
+    },
+    {
+      "type": "VariableDeclaration",
+      "dataType": "int",
+      "name": "sum",
+      "value": {
+        "type": "Number",
+        "value": 0
+      }
+    },
+    {
+      "type": "WhileStatement",
+      "condition": {
+        "type": "BinaryExpression",
+        "operator": ">",
+        "left": {
+          "type": "Identifier",
+          "name": "a"
+        },
+        "right": {
+          "type": "Number",
+          "value": 0
+        }
+      },
+      "body": {
+        "type": "BlockStatement",
+        "body": [
+          {
+            "type": "Assignment",
+            "name": "sum",
+            "value": {
+              "type": "BinaryExpression",
+              "operator": "+",
+              "left": {
+                "type": "Identifier",
+                "name": "sum"
+              },
+              "right": {
+                "type": "Identifier",
+                "name": "a"
+              }
+            }
+          },
+          {
+            "type": "Assignment",
+            "name": "a",
+            "value": {
+              "type": "BinaryExpression",
+              "operator": "-",
+              "left": {
+                "type": "Identifier",
+                "name": "a"
+              },
+              "right": {
+                "type": "Number",
+                "value": 1
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "IfStatement",
+      "condition": {
+        "type": "BinaryExpression",
+        "operator": "==",
+        "left": {
+          "type": "Identifier",
+          "name": "sum"
+        },
+        "right": {
+          "type": "Number",
+          "value": 15
+        }
+      },
+      "consequent": {
+        "type": "BlockStatement",
+        "body": [
+          {
+            "type": "Assignment",
+            "name": "sum",
+            "value": {
+              "type": "BinaryExpression",
+              "operator": "*",
+              "left": {
+                "type": "Identifier",
+                "name": "sum"
+              },
+              "right": {
+                "type": "Number",
+                "value": 2
+              }
+            }
+          }
+        ]
+      },
+      "alternate": {
+        "type": "BlockStatement",
+        "body": [
+          {
+            "type": "Assignment",
+            "name": "sum",
+            "value": {
+              "type": "Number",
+              "value": 0
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "VariableDeclaration",
+      "dataType": "float",
+      "name": "average",
+      "value": {
+        "type": "BinaryExpression",
+        "operator": "/",
+        "left": {
+          "type": "Identifier",
+          "name": "sum"
+        },
+        "right": {
+          "type": "Number",
+          "value": 2.0
+        }
+      }
+    }
+  ]
+}
